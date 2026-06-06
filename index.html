@@ -53,7 +53,7 @@
             <input type="text" id="infoBarang" placeholder="Misal: Sepatu Nike Putih 42" required>
         </div>
 
-        <div class="grid-2">
+        <div class="grid-2" id="divBarangObat">
             <div class="form-group">
                 <label>Harga Satuan (MYR)</label>
                 <input type="number" id="hargaMYR" step="0.01" placeholder="0">
@@ -88,12 +88,18 @@
         // GANTI DENGAN URL APPS SCRIPT ANDA
         const scriptURL = 'https://script.google.com/macros/s/AKfycbwDCwahzBKCmoD6TqVvTbbRHm4FyGZN1ufsYHzdhSqDNbbxHM8PQSoFRjwXW9y6ScK-/exec'; 
 
+        // Aturan Minimum Fee
+        const MIN_FEE_UMUM = 35000;
+        const MIN_FEE_REJAS = 25000;
+
         let TARIF = {};
         const kategoriSelect = document.getElementById('kategori');
         const tipeSelect = document.getElementById('tipePembeli');
         const hargaMYRInput = document.getElementById('hargaMYR');
         const pcsInput = document.getElementById('pcs');
         const beratGramInput = document.getElementById('beratGram');
+        
+        const divBarangObat = document.getElementById('divBarangObat');
         const divInputGram = document.getElementById('divInputGram');
 
         let hitunganTerakhir = { fee: 0, bayar: 0 };
@@ -116,12 +122,19 @@
                 });
         };
 
+        // Logika Tampilan Berdasarkan Kategori
         kategoriSelect.addEventListener('change', function() {
+            // Reset isian agar tidak tercampur
+            hargaMYRInput.value = '';
+            pcsInput.value = '1';
+            beratGramInput.value = '';
+            
             if (this.value === 'Snack') {
                 divInputGram.classList.remove('hidden');
+                divBarangObat.classList.add('hidden');
             } else {
                 divInputGram.classList.add('hidden');
-                beratGramInput.value = '';
+                divBarangObat.classList.remove('hidden');
             }
             kalkulasi();
         });
@@ -144,20 +157,19 @@
             
             let totalFee = 0;
             let totalBayar = 0;
+            let formTerisi = false;
 
-            if (kategori === 'Snack') {
-                // Fee Snack berdasarkan berat total gram
+            if (kategori === 'Snack' && beratGram > 0) {
                 totalFee = (tipe === 'Umum') ? (beratGram * TARIF.snackUmum) : (beratGram * TARIF.snackRejas);
-                totalBayar = totalHargaBarangIDR + totalFee; 
+                totalHargaBarangIDR = 0; // Snack hanya fee berdasarkan gram
+                formTerisi = true;
             } 
-            else if (kategori === 'Obat') {
-                // Fee Obat per Pcs
+            else if (kategori === 'Obat' && hargaMYR > 0) {
                 let feePerPcs = (tipe === 'Umum') ? TARIF.obatUmum : TARIF.obatRejas;
                 totalFee = feePerPcs * pcs;
-                totalBayar = totalHargaBarangIDR + totalFee;
+                formTerisi = true;
             } 
-            else if (kategori === 'Barang') {
-                // Fee Barang (Persentase dari harga satuan, dikali pcs)
+            else if (kategori === 'Barang' && hargaMYR > 0) {
                 let feePerPcs = 0;
                 if (tipe === 'Umum') {
                     feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangUmumBawah300) : (hargaSatuanIDR * TARIF.barangUmumAtas300);
@@ -165,6 +177,15 @@
                     feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangRejasBawah300) : (hargaSatuanIDR * TARIF.barangRejasAtas300);
                 }
                 totalFee = feePerPcs * pcs;
+                formTerisi = true;
+            }
+
+            // APLIKASIKAN MINIMUM FEE (Jika form sudah diisi)
+            if (formTerisi) {
+                let batasMinimum = (tipe === 'Umum') ? MIN_FEE_UMUM : MIN_FEE_REJAS;
+                if (totalFee < batasMinimum) {
+                    totalFee = batasMinimum;
+                }
                 totalBayar = totalHargaBarangIDR + totalFee;
             }
 
