@@ -7,139 +7,181 @@
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: auto; }
         .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; }
-        input, select, button { width: 100%; padding: 10px; box-sizing: border-box; }
-        .result { background: #f0f0f0; padding: 15px; border-radius: 5px; margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input, select, button, textarea { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        textarea { resize: vertical; }
+        .result { background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px; border-left: 5px solid #28a745; }
         button { background: #28a745; color: white; border: none; cursor: pointer; font-size: 16px; font-weight: bold; }
         button:hover { background: #218838; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
         .hidden { display: none; }
+        #statusLoading { color: #0056b3; font-weight: bold; text-align: center; margin-bottom: 15px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     </style>
 </head>
 <body>
 
     <h2>Kalkulator Jastip</h2>
+    <p id="statusLoading">⏳ Sedang mengambil kurs dari Google Finance...</p>
 
-    <form id="jastipForm">
+    <form id="jastipForm" class="hidden">
         <div class="form-group">
             <label>Nama Customer</label>
             <input type="text" id="nama" required>
         </div>
 
-        <div class="form-group">
-            <label>Tipe Pembeli</label>
-            <select id="tipePembeli">
-                <option value="Umum">Umum</option>
-                <option value="Rejastiper">Rejastiper</option>
-            </select>
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Tipe Pembeli</label>
+                <select id="tipePembeli">
+                    <option value="Umum">Umum</option>
+                    <option value="Rejastiper">Rejastiper</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Kategori</label>
+                <select id="kategori">
+                    <option value="Barang">Barang</option>
+                    <option value="Snack">Snack</option>
+                    <option value="Obat">Obat</option>
+                </select>
+            </div>
         </div>
 
         <div class="form-group">
-            <label>Kategori</label>
-            <select id="kategori">
-                <option value="Barang">Barang</option>
-                <option value="Snack">Snack</option>
-                <option value="Obat">Obat</option>
-            </select>
+            <label>Informasi Barang (Nama/Merek/Warna)</label>
+            <input type="text" id="infoBarang" placeholder="Misal: Sepatu Nike Putih 42" required>
         </div>
 
-        <div class="form-group" id="divInputMyr">
-            <label>Harga (MYR)</label>
-            <input type="number" id="hargaMYR" step="0.01" placeholder="Masukkan harga MYR">
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Harga Satuan (MYR)</label>
+                <input type="number" id="hargaMYR" step="0.01" placeholder="0">
+            </div>
+            <div class="form-group">
+                <label>Jumlah (Pcs)</label>
+                <input type="number" id="pcs" value="1" min="1">
+            </div>
         </div>
 
         <div class="form-group hidden" id="divInputGram">
-            <label>Berat (Gram)</label>
+            <label>Total Berat (Gram)</label>
             <input type="number" id="beratGram" placeholder="Masukkan berat gram">
         </div>
 
-        <div class="result">
-            <p>Total Fee: <strong id="tampilFee">Rp 0</strong></p>
-            <p>Total Bayar: <strong id="tampilBayar">Rp 0</strong></p>
+        <div class="form-group">
+            <label>Catatan (Opsional)</label>
+            <textarea id="catatan" rows="2" placeholder="Catatan tambahan..."></textarea>
         </div>
 
-        <button type="submit" id="btnSubmit">Submit ke Spreadsheet</button>
+        <div class="result">
+            <p style="font-size:12px; margin-top:0; color:#555;">*Kurs Otomatis: <strong id="tampilKurs">Memuat...</strong></p>
+            <p style="margin-bottom: 5px;">Total Fee: <strong id="tampilFee" style="color:#d9534f;">Rp 0</strong></p>
+            <p style="margin-top: 5px; font-size: 18px;">Total Bayar: <strong id="tampilBayar" style="color:#28a745;">Rp 0</strong></p>
+        </div>
+
+        <button type="submit" id="btnSubmit">Submit Pesanan</button>
         <p id="statusPesan" style="text-align:center; font-weight:bold;"></p>
     </form>
 
     <script>
-        const KURS = 4500;
+        // GANTI DENGAN URL APPS SCRIPT ANDA
+        const scriptURL = 'URL_WEB_APP_ANDA_DISINI'; 
 
+        let TARIF = {};
         const kategoriSelect = document.getElementById('kategori');
         const tipeSelect = document.getElementById('tipePembeli');
         const hargaMYRInput = document.getElementById('hargaMYR');
+        const pcsInput = document.getElementById('pcs');
         const beratGramInput = document.getElementById('beratGram');
-        
-        const divInputMyr = document.getElementById('divInputMyr');
         const divInputGram = document.getElementById('divInputGram');
 
         let hitunganTerakhir = { fee: 0, bayar: 0 };
 
-        // Mengatur form input berdasarkan kategori
-        kategoriSelect.addEventListener('change', function() {
-            hargaMYRInput.value = '';
-            beratGramInput.value = '';
-            hitunganTerakhir = { fee: 0, bayar: 0 };
-            updateTampilan();
+        window.onload = function() {
+            fetch(scriptURL)
+                .then(response => response.json())
+                .then(data => {
+                    if(data.error) {
+                        document.getElementById('statusLoading').innerText = "❌ Gagal memuat data.";
+                    } else {
+                        TARIF = data;
+                        document.getElementById('statusLoading').classList.add('hidden');
+                        document.getElementById('jastipForm').classList.remove('hidden');
+                        document.getElementById('tampilKurs').innerText = "Rp " + TARIF.kurs.toLocaleString('id-ID');
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('statusLoading').innerText = "❌ Gagal terhubung.";
+                });
+        };
 
+        kategoriSelect.addEventListener('change', function() {
             if (this.value === 'Snack') {
-                divInputMyr.classList.add('hidden');
                 divInputGram.classList.remove('hidden');
             } else {
-                divInputMyr.classList.remove('hidden');
                 divInputGram.classList.add('hidden');
+                beratGramInput.value = '';
             }
+            kalkulasi();
         });
 
-        // Event listener untuk memicu kalkulasi real-time
-        [tipeSelect, hargaMYRInput, beratGramInput].forEach(el => {
+        [tipeSelect, hargaMYRInput, pcsInput, beratGramInput, kategoriSelect].forEach(el => {
             el.addEventListener('input', kalkulasi);
         });
 
         function kalkulasi() {
+            if (!TARIF.kurs) return;
+
             let kategori = kategoriSelect.value;
             let tipe = tipeSelect.value;
             let hargaMYR = parseFloat(hargaMYRInput.value) || 0;
+            let pcs = parseInt(pcsInput.value) || 1;
             let beratGram = parseFloat(beratGramInput.value) || 0;
 
-            let hargaIDR = hargaMYR * KURS;
+            let hargaSatuanIDR = hargaMYR * TARIF.kurs;
+            let totalHargaBarangIDR = hargaSatuanIDR * pcs;
+            
             let totalFee = 0;
             let totalBayar = 0;
 
-            if (kategori === 'Snack' && beratGram > 0) {
-                totalFee = (tipe === 'Umum') ? (beratGram * 130) : (beratGram * 110);
-                totalBayar = totalFee; // Snack hanya dihitung fee berdasarkan gram (jika ada harga barang aslinya bisa ditambahkan di sini)
+            if (kategori === 'Snack') {
+                // Fee Snack berdasarkan berat total gram
+                totalFee = (tipe === 'Umum') ? (beratGram * TARIF.snackUmum) : (beratGram * TARIF.snackRejas);
+                totalBayar = totalHargaBarangIDR + totalFee; 
             } 
-            else if (kategori === 'Obat' && hargaMYR > 0) {
-                totalFee = (tipe === 'Umum') ? 25000 : 20000;
-                totalBayar = hargaIDR + totalFee;
+            else if (kategori === 'Obat') {
+                // Fee Obat per Pcs
+                let feePerPcs = (tipe === 'Umum') ? TARIF.obatUmum : TARIF.obatRejas;
+                totalFee = feePerPcs * pcs;
+                totalBayar = totalHargaBarangIDR + totalFee;
             } 
-            else if (kategori === 'Barang' && hargaMYR > 0) {
+            else if (kategori === 'Barang') {
+                // Fee Barang (Persentase dari harga satuan, dikali pcs)
+                let feePerPcs = 0;
                 if (tipe === 'Umum') {
-                    totalFee = (hargaMYR < 300) ? (hargaIDR * 0.25) : (hargaIDR * 0.20);
+                    feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangUmumBawah300) : (hargaSatuanIDR * TARIF.barangUmumAtas300);
                 } else if (tipe === 'Rejastiper') {
-                    totalFee = (hargaMYR < 300) ? (hargaIDR * 0.20) : (hargaIDR * 0.15);
+                    feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangRejasBawah300) : (hargaSatuanIDR * TARIF.barangRejasAtas300);
                 }
-                totalBayar = hargaIDR + totalFee;
+                totalFee = feePerPcs * pcs;
+                totalBayar = totalHargaBarangIDR + totalFee;
             }
 
             hitunganTerakhir.fee = totalFee;
             hitunganTerakhir.bayar = totalBayar;
-            updateTampilan();
+            
+            document.getElementById('tampilFee').innerText = 'Rp ' + Math.round(totalFee).toLocaleString('id-ID');
+            document.getElementById('tampilBayar').innerText = 'Rp ' + Math.round(totalBayar).toLocaleString('id-ID');
         }
 
-        function updateTampilan() {
-            document.getElementById('tampilFee').innerText = 'Rp ' + Math.round(hitunganTerakhir.fee).toLocaleString('id-ID');
-            document.getElementById('tampilBayar').innerText = 'Rp ' + Math.round(hitunganTerakhir.bayar).toLocaleString('id-ID');
-        }
-
-        // Proses Submit
         document.getElementById('jastipForm').addEventListener('submit', function(e) {
             e.preventDefault();
             let btn = document.getElementById('btnSubmit');
             let status = document.getElementById('statusPesan');
 
-            if (hitunganTerakhir.bayar === 0 && kategoriSelect.value !== 'Snack') {
-                alert("Mohon isi harga/berat terlebih dahulu!");
+            if (hitunganTerakhir.fee === 0 && hitunganTerakhir.bayar === 0) {
+                alert("Mohon isi Harga MYR atau Berat terlebih dahulu!");
                 return;
             }
 
@@ -147,27 +189,27 @@
             btn.innerText = "Mengirim...";
             status.innerText = "";
 
-            // GANTI URL DI BAWAH INI DENGAN WEB APP URL DARI APPS SCRIPT ANDA
-            const scriptURL = 'https://script.google.com/macros/s/AKfycbwDCwahzBKCmoD6TqVvTbbRHm4FyGZN1ufsYHzdhSqDNbbxHM8PQSoFRjwXW9y6ScK-/exec'; 
-
             const formData = new URLSearchParams();
             formData.append('nama', document.getElementById('nama').value);
             formData.append('tipePembeli', tipeSelect.value);
             formData.append('kategori', kategoriSelect.value);
+            formData.append('infoBarang', document.getElementById('infoBarang').value);
+            formData.append('catatan', document.getElementById('catatan').value);
             formData.append('hargaMYR', hargaMYRInput.value);
+            formData.append('pcs', pcsInput.value);
             formData.append('beratGram', beratGramInput.value);
             formData.append('totalFee', Math.round(hitunganTerakhir.fee));
             formData.append('totalBayar', Math.round(hitunganTerakhir.bayar));
 
             fetch(scriptURL, { method: 'POST', body: formData })
                 .then(response => {
-                    status.innerText = "Data berhasil disimpan!";
+                    status.innerText = "Pesanan berhasil dicatat!";
                     status.style.color = "green";
                     document.getElementById('jastipForm').reset();
                     hitunganTerakhir = { fee: 0, bayar: 0 };
-                    updateTampilan();
+                    kalkulasi();
                     btn.disabled = false;
-                    btn.innerText = "Submit ke Spreadsheet";
+                    btn.innerText = "Submit Pesanan";
                 })
                 .catch(error => {
                     status.innerText = "Gagal mengirim data.";
