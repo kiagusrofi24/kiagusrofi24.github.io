@@ -76,6 +76,7 @@
         <div class="result">
             <p style="font-size:12px; margin-top:0; color:#555;">*Kurs Otomatis: <strong id="tampilKurs">Memuat...</strong></p>
             <p style="margin-bottom: 5px;">Total Fee: <strong id="tampilFee" style="color:#d9534f;">Rp 0</strong></p>
+            <p style="margin-bottom: 5px;">Total Harga Barang: <strong id="tampilHargaBarang" style="color:#0056b3;">Rp 0</strong></p>
             <p style="margin-top: 5px; font-size: 18px;">Total Bayar: <strong id="tampilBayar" style="color:#28a745;">Rp 0</strong></p>
         </div>
 
@@ -87,7 +88,6 @@
         // GANTI DENGAN URL APPS SCRIPT ANDA
         const scriptURL = 'https://script.google.com/macros/s/AKfycbwDCwahzBKCmoD6TqVvTbbRHm4FyGZN1ufsYHzdhSqDNbbxHM8PQSoFRjwXW9y6ScK-/exec'; 
 
-        // Aturan Minimum Fee
         const MIN_FEE_UMUM = 35000;
         const MIN_FEE_REJAS = 25000;
 
@@ -101,7 +101,7 @@
         const divPcs = document.getElementById('divPcs');
         const divInputGram = document.getElementById('divInputGram');
 
-        let hitunganTerakhir = { fee: 0, bayar: 0 };
+        let hitunganTerakhir = { hargaBarang: 0, fee: 0, bayar: 0 };
 
         window.onload = function() {
             fetch(scriptURL)
@@ -121,9 +121,7 @@
                 });
         };
 
-        // Logika Tampilan Berdasarkan Kategori
         kategoriSelect.addEventListener('change', function() {
-            // Reset isian yang tidak terpakai
             pcsInput.value = '1';
             beratGramInput.value = '';
             
@@ -157,7 +155,6 @@
             let formTerisi = false;
 
             if (kategori === 'Snack') {
-                // Snack dihitung harganya berdasarkan 1 paket (tanpa Pcs)
                 totalHargaBarangIDR = hargaSatuanIDR; 
                 if (beratGram > 0 || hargaMYR > 0) {
                     totalFee = (tipe === 'Umum') ? (beratGram * TARIF.snackUmum) : (beratGram * TARIF.snackRejas);
@@ -186,7 +183,6 @@
                 }
             }
 
-            // APLIKASIKAN MINIMUM FEE (Jika data diisi dan bukan Rp 0)
             if (formTerisi && totalFee > 0) {
                 let batasMinimum = (tipe === 'Umum') ? MIN_FEE_UMUM : MIN_FEE_REJAS;
                 if (totalFee < batasMinimum) {
@@ -194,15 +190,18 @@
                 }
             }
 
-            // Jika ada harga barang atau ada fee, kita hitung total bayar
             if (formTerisi || hargaMYR > 0) {
                 totalBayar = totalHargaBarangIDR + totalFee;
             }
 
+            // Menyimpan perhitungan untuk ditampilkan
+            hitunganTerakhir.hargaBarang = totalHargaBarangIDR;
             hitunganTerakhir.fee = totalFee;
             hitunganTerakhir.bayar = totalBayar;
             
+            // Menampilkan ke layar
             document.getElementById('tampilFee').innerText = 'Rp ' + Math.round(totalFee).toLocaleString('id-ID');
+            document.getElementById('tampilHargaBarang').innerText = 'Rp ' + Math.round(totalHargaBarangIDR).toLocaleString('id-ID');
             document.getElementById('tampilBayar').innerText = 'Rp ' + Math.round(totalBayar).toLocaleString('id-ID');
         }
 
@@ -227,7 +226,6 @@
             formData.append('infoBarang', document.getElementById('infoBarang').value);
             formData.append('catatan', document.getElementById('catatan').value);
             formData.append('hargaMYR', hargaMYRInput.value);
-            // Simpan data Pcs atau Gram tergantung kategori yang dipilih
             formData.append('pcs', (kategoriSelect.value === 'Snack') ? 1 : pcsInput.value);
             formData.append('beratGram', (kategoriSelect.value === 'Snack') ? beratGramInput.value : "-");
             formData.append('totalFee', Math.round(hitunganTerakhir.fee));
@@ -238,7 +236,7 @@
                     status.innerText = "Pesanan berhasil dicatat!";
                     status.style.color = "green";
                     document.getElementById('jastipForm').reset();
-                    hitunganTerakhir = { fee: 0, bayar: 0 };
+                    hitunganTerakhir = { hargaBarang: 0, fee: 0, bayar: 0 };
                     kalkulasi();
                     btn.disabled = false;
                     btn.innerText = "Submit Pesanan";
