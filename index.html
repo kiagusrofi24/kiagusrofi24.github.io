@@ -53,15 +53,14 @@
             <input type="text" id="infoBarang" placeholder="Misal: Sepatu Nike Putih 42" required>
         </div>
 
-        <div class="grid-2" id="divBarangObat">
-            <div class="form-group">
-                <label>Harga Satuan (MYR)</label>
-                <input type="number" id="hargaMYR" step="0.01" placeholder="0">
-            </div>
-            <div class="form-group">
-                <label>Jumlah (Pcs)</label>
-                <input type="number" id="pcs" value="1" min="1">
-            </div>
+        <div class="form-group">
+            <label>Harga Satuan (MYR)</label>
+            <input type="number" id="hargaMYR" step="0.01" placeholder="0">
+        </div>
+
+        <div class="form-group" id="divPcs">
+            <label>Jumlah (Pcs)</label>
+            <input type="number" id="pcs" value="1" min="1">
         </div>
 
         <div class="form-group hidden" id="divInputGram">
@@ -86,7 +85,7 @@
 
     <script>
         // GANTI DENGAN URL APPS SCRIPT ANDA
-        const scriptURL = 'https://script.google.com/macros/s/AKfycbwDCwahzBKCmoD6TqVvTbbRHm4FyGZN1ufsYHzdhSqDNbbxHM8PQSoFRjwXW9y6ScK-/exec'; 
+        const scriptURL = 'URL_WEB_APP_ANDA_DISINI'; 
 
         // Aturan Minimum Fee
         const MIN_FEE_UMUM = 35000;
@@ -99,7 +98,7 @@
         const pcsInput = document.getElementById('pcs');
         const beratGramInput = document.getElementById('beratGram');
         
-        const divBarangObat = document.getElementById('divBarangObat');
+        const divPcs = document.getElementById('divPcs');
         const divInputGram = document.getElementById('divInputGram');
 
         let hitunganTerakhir = { fee: 0, bayar: 0 };
@@ -124,17 +123,16 @@
 
         // Logika Tampilan Berdasarkan Kategori
         kategoriSelect.addEventListener('change', function() {
-            // Reset isian agar tidak tercampur
-            hargaMYRInput.value = '';
+            // Reset isian yang tidak terpakai
             pcsInput.value = '1';
             beratGramInput.value = '';
             
             if (this.value === 'Snack') {
                 divInputGram.classList.remove('hidden');
-                divBarangObat.classList.add('hidden');
+                divPcs.classList.add('hidden');
             } else {
                 divInputGram.classList.add('hidden');
-                divBarangObat.classList.remove('hidden');
+                divPcs.classList.remove('hidden');
             }
             kalkulasi();
         });
@@ -153,39 +151,51 @@
             let beratGram = parseFloat(beratGramInput.value) || 0;
 
             let hargaSatuanIDR = hargaMYR * TARIF.kurs;
-            let totalHargaBarangIDR = hargaSatuanIDR * pcs;
-            
+            let totalHargaBarangIDR = 0;
             let totalFee = 0;
             let totalBayar = 0;
             let formTerisi = false;
 
-            if (kategori === 'Snack' && beratGram > 0) {
-                totalFee = (tipe === 'Umum') ? (beratGram * TARIF.snackUmum) : (beratGram * TARIF.snackRejas);
-                totalHargaBarangIDR = 0; // Snack hanya fee berdasarkan gram
-                formTerisi = true;
-            } 
-            else if (kategori === 'Obat' && hargaMYR > 0) {
-                let feePerPcs = (tipe === 'Umum') ? TARIF.obatUmum : TARIF.obatRejas;
-                totalFee = feePerPcs * pcs;
-                formTerisi = true;
-            } 
-            else if (kategori === 'Barang' && hargaMYR > 0) {
-                let feePerPcs = 0;
-                if (tipe === 'Umum') {
-                    feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangUmumBawah300) : (hargaSatuanIDR * TARIF.barangUmumAtas300);
-                } else if (tipe === 'Rejastiper') {
-                    feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangRejasBawah300) : (hargaSatuanIDR * TARIF.barangRejasAtas300);
+            if (kategori === 'Snack') {
+                // Snack dihitung harganya berdasarkan 1 paket (tanpa Pcs)
+                totalHargaBarangIDR = hargaSatuanIDR; 
+                if (beratGram > 0 || hargaMYR > 0) {
+                    totalFee = (tipe === 'Umum') ? (beratGram * TARIF.snackUmum) : (beratGram * TARIF.snackRejas);
+                    formTerisi = true;
                 }
-                totalFee = feePerPcs * pcs;
-                formTerisi = true;
+            } 
+            else if (kategori === 'Obat') {
+                totalHargaBarangIDR = hargaSatuanIDR * pcs;
+                if (hargaMYR > 0) {
+                    let feePerPcs = (tipe === 'Umum') ? TARIF.obatUmum : TARIF.obatRejas;
+                    totalFee = feePerPcs * pcs;
+                    formTerisi = true;
+                }
+            } 
+            else if (kategori === 'Barang') {
+                totalHargaBarangIDR = hargaSatuanIDR * pcs;
+                if (hargaMYR > 0) {
+                    let feePerPcs = 0;
+                    if (tipe === 'Umum') {
+                        feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangUmumBawah300) : (hargaSatuanIDR * TARIF.barangUmumAtas300);
+                    } else if (tipe === 'Rejastiper') {
+                        feePerPcs = (hargaMYR < 300) ? (hargaSatuanIDR * TARIF.barangRejasBawah300) : (hargaSatuanIDR * TARIF.barangRejasAtas300);
+                    }
+                    totalFee = feePerPcs * pcs;
+                    formTerisi = true;
+                }
             }
 
-            // APLIKASIKAN MINIMUM FEE (Jika form sudah diisi)
-            if (formTerisi) {
+            // APLIKASIKAN MINIMUM FEE (Jika data diisi dan bukan Rp 0)
+            if (formTerisi && totalFee > 0) {
                 let batasMinimum = (tipe === 'Umum') ? MIN_FEE_UMUM : MIN_FEE_REJAS;
                 if (totalFee < batasMinimum) {
                     totalFee = batasMinimum;
                 }
+            }
+
+            // Jika ada harga barang atau ada fee, kita hitung total bayar
+            if (formTerisi || hargaMYR > 0) {
                 totalBayar = totalHargaBarangIDR + totalFee;
             }
 
@@ -217,8 +227,9 @@
             formData.append('infoBarang', document.getElementById('infoBarang').value);
             formData.append('catatan', document.getElementById('catatan').value);
             formData.append('hargaMYR', hargaMYRInput.value);
-            formData.append('pcs', pcsInput.value);
-            formData.append('beratGram', beratGramInput.value);
+            // Simpan data Pcs atau Gram tergantung kategori yang dipilih
+            formData.append('pcs', (kategoriSelect.value === 'Snack') ? 1 : pcsInput.value);
+            formData.append('beratGram', (kategoriSelect.value === 'Snack') ? beratGramInput.value : "-");
             formData.append('totalFee', Math.round(hitunganTerakhir.fee));
             formData.append('totalBayar', Math.round(hitunganTerakhir.bayar));
 
